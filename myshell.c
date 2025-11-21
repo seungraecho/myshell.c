@@ -13,7 +13,7 @@
 #define CONFIG_FILE ".myshell"
 
 int parse_config_paths(char *pathPtr[]) {
-        char *token;
+    char *token;
     FILE *fp = fopen(CONFIG_FILE, "r");
     // 파일이 없을 경우에 대한 예외 처리
     if (fp == NULL) {
@@ -82,28 +82,31 @@ int main(int argc, char *argv[]) {
 
         // 개행 문자 제거
         line[strcspn(line, "\n")] = 0;
+		
+		// 루프마다 새로운 인자 배열 사용
+		int my_argc = 0;
+		char *my_argv[MAX_ARGS];
 
         // 3. 명령어 파싱 (공백 기준 분리)
         char *token = strtok(line, " ");
-        while (token!= NULL && argc < MAX_ARGS - 1) {
-            argv[argc++] = token;
+        while (token!= NULL && my_argc < MAX_ARGS - 1) {
+            my_argv[my_argc++] = token;
             token = strtok(NULL, " ");
         }
-        argv[argc] = NULL; // execv를 위해 인자 배열의 끝은 NULL이어야 함
+        my_argv[argc] = NULL; // execv를 위해 인자 배열의 끝은 NULL이어야 함
 
-        if (argv[0] == NULL) continue; // 공백만 입력된 경우
+        if (my_argv[0] == NULL) continue; // 공백만 입력된 경우
 
         // 4. 내장 명령어 처리
         // 종료 명령
-        if (strcmp(argv[0], "exit") == 0 || strcmp(argv[0], "quit") == 0) {
-            printf("Terminating myshell...\n");
+        if (strcmp(my_argv[0], "exit") == 0 || strcmp(my_argv[0], "quit") == 0) {
             break;
         }
 
         // 디렉토리 변경 (cd)
-        if (strcmp(argv[0], "cd") == 0) {
+        if (strcmp(my_argv[0], "cd") == 0) {
             // 인자가 없으면 홈 디렉토리로, 있으면 해당 디렉토리로 이동
-            char *target_dir = argv[1];
+            char *target_dir = my_argv[1];
             if (target_dir == NULL) {
                 target_dir = getenv("HOME"); // HOME 환경변수 사용
             }
@@ -119,29 +122,20 @@ int main(int argc, char *argv[]) {
         int found = 0;
 
         // 5-1. 절대 경로 또는 상대 경로로 직접 입력된 경우 (예: /bin/ls,./a.out)
-        if (strchr(argv[0], '/')!= NULL) {
-            if (access(argv[0], F_OK) == 0) {
-                if (access(argv[0], X_OK) == 0) { // 실행 권한 확인
-                    strncpy(exec_path, argv[0], MAX_CMD_LEN);
-                    found = 1;
-                }
-                else {
-                    fprintf(stderr, "Permission denied: %s\n", argv[0]);
-                    continue;
-                }
+        if (strchr(my_argv[0], '/')!= NULL) {
+			if (access(my_argv[0], X_OK) == 0) { // 실행 권한 확인
+				strncpy(exec_path, my_argv[0], MAX_CMD_LEN);
+			    found = 1;
             }
-        }
+		}
         // 5-2. PATH 경로 탐색
         else {
             for (int i = 0; i < path_count; i++) {
                 // 경로 생성: path + "/" + command
-                snprintf(exec_path, sizeof(exec_path), "%s/%s", pathPtr[i], argv[0]);
-
-                if (access(exec_path, F_OK) == 0) {
-                     if (access(exec_path, X_OK) == 0) {
-                        found = 1;
-                        break; // 찾았으면 탐색 중단
-                     }
+                snprintf(exec_path, sizeof(exec_path), "%s/%s", pathPtr[i], my_argv[0]);
+				if (access(exec_path, X_OK) == 0) {
+                    found = 1;
+                    break; // 찾았으면 탐색 중단
                 }
             }
         }
@@ -154,21 +148,17 @@ int main(int argc, char *argv[]) {
                 perror("fork error");
             else if (pid == 0) {
                 // [자식 프로세스]
-                // execv 호출: 찾은 경로와 인자 배열 전달
-                if (execv(exec_path, argv) == -1) {
-                    // execv는 성공 시 리턴하지 않으므로, 여기까지 오면 에러임
+                if (execv(exec_path, argv, argv+1) == -1) {
                     perror("Execution failed");
-                    exit(EXIT_FAILURE); // 자식 프로세스 종료
-                }
+                    exit(EXIT_FAILURE);
+				}
             }
             else {
                 // [부모 프로세스]
                 int status;
-                // 자식 프로세스 종료 대기
                 if (wait(&status) == -1) {
                     perror("wait error");
                 }
-                // 선택적: 종료 상태 코드 확인 로직 추가 가능
             }
         }
         else
@@ -180,6 +170,5 @@ int main(int argc, char *argv[]) {
         if(pathPtr[i]!= NULL)
                free(pathPtr[i]);
     }
-
     return 0;
 }
