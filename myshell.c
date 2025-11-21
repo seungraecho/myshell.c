@@ -34,7 +34,7 @@ int parse_config_paths(char *pathPtr[]) {
         // "PATH=" 문자열로 시작하는지 확인
         if (strncmp(line, "PATH=", 5) == 0) {
             // "PATH=" 이후의 문자열 포인터 획득
-
+            token = strtok(line + 5, ":");
 
             while (token!= NULL && path_count < MAX_PATHS) {
                 // 토큰을 복제하여 저장 (strdup은 malloc을 사용하므로 추후 free 필요)
